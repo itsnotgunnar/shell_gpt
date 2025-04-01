@@ -21,8 +21,11 @@ DEFAULT_CONFIG = {
     "CACHE_PATH": os.getenv("CACHE_PATH", str(CACHE_PATH)),
     "CHAT_CACHE_LENGTH": int(os.getenv("CHAT_CACHE_LENGTH", "100")),
     "CACHE_LENGTH": int(os.getenv("CHAT_CACHE_LENGTH", "100")),
+    "EXTENDED_CONTEXT": os.getenv("EXTENDED_CONTEXT", "false"),
+    "CONTEXT_SUMMARY_THRESHOLD": int(os.getenv("CONTEXT_SUMMARY_THRESHOLD", "20")),
+    "CONTEXT_RETENTION": os.getenv("CONTEXT_RETENTION", "all"),  # all, key, summary
     "REQUEST_TIMEOUT": int(os.getenv("REQUEST_TIMEOUT", "60")),
-    "DEFAULT_MODEL": os.getenv("DEFAULT_MODEL", "gpt-4o"),
+    "DEFAULT_MODEL": os.getenv("DEFAULT_MODEL", "o1"),
     "DEFAULT_COLOR": os.getenv("DEFAULT_COLOR", "magenta"),
     "ROLE_STORAGE_PATH": os.getenv("ROLE_STORAGE_PATH", str(ROLE_STORAGE_PATH)),
     "DEFAULT_EXECUTE_SHELL_CMD": os.getenv("DEFAULT_EXECUTE_SHELL_CMD", "false"),

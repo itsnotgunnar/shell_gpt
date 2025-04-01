@@ -22,6 +22,9 @@ class ChatSession:
     The ChatSession class caches chat messages and keeps track of the
     conversation history. It is designed to store cached messages
     in a specified directory and in JSON format.
+    
+    It supports extended context management for models with larger context windows,
+    including options for summarization and key information retention.
     """
 
     def __init__(self, length: int, storage_path: Path):
@@ -71,7 +74,47 @@ class ChatSession:
 
     def _write(self, messages: List[Dict[str, str]], chat_id: str) -> None:
         file_path = self.storage_path / chat_id
-        json.dump(messages[-self.length :], file_path.open("w"))
+        extended_context = cfg.get("EXTENDED_CONTEXT") == "true"
+        
+        # For extended context, manage based on model capabilities
+        if extended_context:
+            retention = cfg.get("CONTEXT_RETENTION")
+            summary_threshold = int(cfg.get("CONTEXT_SUMMARY_THRESHOLD"))
+            
+            # If approaching threshold and using summaries, create a summary of older messages
+            if retention == "summary" and len(messages) > summary_threshold:
+                # Create a system message containing summary of older messages
+                summary_prompt = {"role": "user", "content": "Summarize our conversation so far in a concise way, preserving key information."}
+                summary_messages = messages[:summary_threshold] + [summary_prompt]
+                
+                # Need to actually call LLM here to get summary - for now we'll add a placeholder
+                # In a full implementation, we'd make an API call with summary_messages
+                summary = "Conversation summary: " + ", ".join([m.get("content", "")[:20] + "..." for m in messages[:5]])
+                
+                # Replace older messages with summary
+                messages = [{"role": "system", "content": summary}] + messages[summary_threshold:]
+                
+            # For 'key' retention, only keep the first system message and recent messages
+            elif retention == "key":
+                system_msg = next((m for m in messages if m["role"] == "system"), None)
+                if system_msg:
+                    recent = messages[-self.length:]
+                    if system_msg not in recent:
+                        messages = [system_msg] + recent
+                    else:
+                        messages = recent
+                else:
+                    messages = messages[-self.length:]
+            
+            # For 'all' retention, still apply maximum limit but higher than default
+            else:  # retention == "all"
+                max_msgs = self.length * 2  # Double the standard length for o1 model
+                messages = messages[-max_msgs:]
+        else:
+            # Standard behavior - just keep the most recent messages
+            messages = messages[-self.length:]
+            
+        json.dump(messages, file_path.open("w"))
 
     def invalidate(self, chat_id: str) -> None:
         file_path = self.storage_path / chat_id
@@ -127,9 +170,9 @@ class ChatHandler(Handler):
             typer.echo(chat_id)
 
     @classmethod
-    def show_messages(cls, chat_id: str, markdown: bool) -> None:
+    def show_messages(cls, chat_id: str) -> None:
         color = cfg.get("DEFAULT_COLOR")
-        if "APPLY MARKDOWN" in cls.initial_message(chat_id) and markdown:
+        if "APPLY MARKDOWN" in cls.initial_message(chat_id):
             theme = cfg.get("CODE_THEME")
             for message in cls.chat_session.get_messages(chat_id):
                 if message.startswith("assistant:"):
@@ -142,6 +185,11 @@ class ChatHandler(Handler):
         for index, message in enumerate(cls.chat_session.get_messages(chat_id)):
             running_color = color if index % 2 == 0 else "green"
             typer.secho(message, fg=running_color)
+
+    @classmethod
+    @option_callback
+    def show_messages_callback(cls, chat_id: str) -> None:
+        cls.show_messages(chat_id)
 
     def validate(self) -> None:
         if self.initiated:

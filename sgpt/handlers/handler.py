@@ -23,7 +23,6 @@ if use_litellm:
 
     completion = litellm.completion
     litellm.suppress_debug_info = True
-    additional_kwargs.pop("api_key")
 else:
     from openai import OpenAI
 
@@ -103,14 +102,19 @@ class Handler:
             additional_kwargs["tools"] = functions
             additional_kwargs["parallel_tool_calls"] = False
 
-        response = completion(
-            model=model,
-            temperature=temperature,
-            top_p=top_p,
-            messages=messages,
-            stream=True,
-            **additional_kwargs,
-        )
+        # o1 model doesn't support temperature parameter
+        params = {
+            "model": model,
+            "messages": messages,
+            "stream": True,
+        }
+        
+        # Only add temperature and top_p if not using o1 model
+        if not model.endswith("o1") and model.endswith("o3-mini-high"):
+            params["temperature"] = temperature
+            params["top_p"] = top_p
+            
+        response = completion(**params, **additional_kwargs)
 
         try:
             for chunk in response:

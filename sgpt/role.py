@@ -21,6 +21,20 @@ Provide only plain text without Markdown formatting.
 Do not provide markdown formatting such as ```.
 """
 
+O1_SHELL_ROLE = """<instructions>
+Generate only executable {shell} commands for {os} systems.
+
+Your output must:
+- Contain ONLY the command with no explanations or markdown
+- Be directly executable in a terminal
+- Combine multiple steps with && when needed
+- Use proper quoting and escaping
+- Be optimized for correctness and efficiency
+
+If details are lacking, provide the most logical and safe solution.
+NEVER include explanations, markdown, or code blocks.
+</instructions>"""
+
 DESCRIBE_SHELL_ROLE = """Provide a terse, single sentence description of the given shell command.
 Describe each argument and option of the command.
 Provide short responses in about 80 words.
@@ -39,6 +53,27 @@ You are managing {os} operating system with {shell} shell.
 Provide short responses in about 100 words, unless you are specifically asked for more details.
 If you need to store any data, assume it will be stored in the conversation.
 APPLY MARKDOWN formatting when possible."""
+
+O1_ROLE = """<instructions>
+You are an advanced AI programming and system administration assistant.
+You are managing {os} operating system with {shell} shell.
+
+Your capabilities include:
+- Providing accurate, concise programming assistance
+- Generating efficient system administration commands
+- Understanding complex technical queries
+- Producing well-structured responses
+
+Guidelines:
+- Provide thorough responses with detailed examples when appropriate
+- Use clear, structured formatting with proper markdown
+- For code samples, include comments explaining key aspects
+- When providing system commands, include brief explanations of flags
+- Think step-by-step for complex problems
+
+Adjust your response length based on the complexity of the question.
+APPLY MARKDOWN formatting to enhance readability.
+</instructions>"""
 # Note that output for all roles containing "APPLY MARKDOWN" will be formatted as Markdown.
 
 ROLE_TEMPLATE = "You are {name}\n{role}"
@@ -68,6 +103,8 @@ class SystemRole:
             SystemRole("Shell Command Generator", SHELL_ROLE, variables),
             SystemRole("Shell Command Descriptor", DESCRIBE_SHELL_ROLE, variables),
             SystemRole("Code Generator", CODE_ROLE),
+            SystemRole("O1 Assistant", O1_ROLE, variables),
+            SystemRole("O1 Shell Command Generator", O1_SHELL_ROLE, variables),
         ):
             if not default_role._exists:
                 default_role._save()
@@ -171,6 +208,8 @@ class DefaultRoles(Enum):
     SHELL = "Shell Command Generator"
     DESCRIBE_SHELL = "Shell Command Descriptor"
     CODE = "Code Generator"
+    O1 = "O1 Assistant"
+    O1_SHELL = "O1 Shell Command Generator"
 
     @classmethod
     def check_get(cls, shell: bool, describe_shell: bool, code: bool) -> SystemRole:

@@ -33,6 +33,16 @@ def main(
         cfg.get("DEFAULT_MODEL"),
         help="Large language model to use.",
     ),
+    o1_optimized: bool = typer.Option(
+        True,
+        help="Use o1-optimized prompts and formatting (default: True).",
+        rich_help_panel="Advanced Options",
+    ),
+    disable_o1_prompts: bool = typer.Option(
+        False,
+        help="Disable o1-optimized prompts even when using o1 model.",
+        rich_help_panel="Advanced Options",
+    ),
     temperature: float = typer.Option(
         0.0,
         min=0.0,
@@ -48,6 +58,16 @@ def main(
     md: bool = typer.Option(
         cfg.get("PRETTIFY_MARKDOWN") == "true",
         help="Prettify markdown output.",
+    ),
+    extended_context: bool = typer.Option(
+        cfg.get("EXTENDED_CONTEXT") == "true",
+        help="Use extended context for models with larger context windows.",
+        rich_help_panel="Advanced Options",
+    ),
+    context_retention: str = typer.Option(
+        cfg.get("CONTEXT_RETENTION"),
+        help="Context retention strategy: 'all', 'key', or 'summary'.",
+        rich_help_panel="Advanced Options",
     ),
     shell: bool = typer.Option(
         False,
@@ -107,6 +127,7 @@ def main(
     show_chat: str = typer.Option(
         None,
         help="Show all messages from provided chat id.",
+        callback=ChatHandler.show_messages_callback,
         rich_help_panel="Chat Options",
     ),
     list_chats: bool = typer.Option(
@@ -182,9 +203,6 @@ def main(
             # Non-interactive shell.
             pass
 
-    if show_chat:
-        ChatHandler.show_messages(show_chat, md)
-
     if sum((shell, describe_shell, code)) > 1:
         raise BadArgumentUsage(
             "Only one of --shell, --describe-shell, and --code options can be used at a time."
@@ -195,15 +213,32 @@ def main(
 
     if editor and stdin_passed:
         raise BadArgumentUsage("--editor option cannot be used with stdin input.")
+        
+    # Update config with command-line options
+    if extended_context:
+        os.environ["EXTENDED_CONTEXT"] = "true"
+    
+    if context_retention in ["all", "key", "summary"]:
+        os.environ["CONTEXT_RETENTION"] = context_retention
+        
+    # Handle o1-optimized formatting - use O1_ROLE as default unless explicitly disabled
+    is_o1_model = model.endswith("o1")
+    use_o1_optimized = (is_o1_model and not disable_o1_prompts) or (o1_optimized and not disable_o1_prompts)
 
     if editor:
         prompt = get_edited_prompt()
 
-    role_class = (
-        DefaultRoles.check_get(shell, describe_shell, code)
-        if not role
-        else SystemRole.get(role)
-    )
+    # Select appropriate role based on model and mode
+    if not role:
+        if use_o1_optimized:
+            if shell:
+                role_class = DefaultRoles.O1_SHELL.get_role()
+            else:
+                role_class = DefaultRoles.O1.get_role()
+        else:
+            role_class = DefaultRoles.check_get(shell, describe_shell, code)
+    else:
+        role_class = SystemRole.get(role)
 
     function_schemas = (get_openai_schemas() or None) if functions else None
 
